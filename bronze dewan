@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Panel Dewan - Digital Scoring Pencak Silat TGR</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #00d2ff;
+            --bg-color: #f0f4f8;
+            --text-main: #2d3436;
+            --text-sub: #636e72;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --warning: #f1c40f;
+            --dark: #2d3436;
+            
+            /* Variabel Tema Dinamis (Default Gelap) */
+            --theme-color: #2d3436;
+        }
+
+        /* TEMA SUDUT MERAH & BIRU */
+        body.theme-merah { --theme-color: var(--danger); }
+        body.theme-biru { --theme-color: var(--primary-color); }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Set full viewport, no scroll, no borders */
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* OVERLAY FULLSCREEN UNTUK MOBILE */
+        #fs-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: var(--dark);
+            color: white;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            backdrop-filter: blur(5px);
+        }
+        
+        .fs-content {
+            cursor: pointer;
+            padding: 30px;
+            border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            transition: 0.3s;
+        }
+        
+        .fs-content:active { background: rgba(255,255,255,0.1); transform: scale(0.95); }
+
+        /* PANEL UTAMA: Memenuhi seluruh layar dengan padding tipis */
+        .panel { 
+            background: white; 
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: clamp(5px, 2vh, 15px);
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 0 0 auto;
+            position: relative;
+            margin-bottom: clamp(5px, 1.5vh, 15px);
+            min-height: clamp(35px, 6vh, 45px);
+        }
+
+        #d-match-info-header {
+            font-weight: 700; 
+            color: var(--theme-color); 
+            font-size: clamp(0.9rem, 2.8vh, 1.3rem); 
+            text-transform: uppercase;
+            text-align: center;
+            width: 100%;
+            padding: 0 45px; /* Beri ruang agar teks tidak tertabrak tombol */
+        }
+
+        .btn-fs {
+            background: transparent;
+            color: var(--text-sub);
+            border: none;
+            width: clamp(35px, 6vh, 45px);
+            height: clamp(35px, 6vh, 45px);
+            cursor: pointer;
+            font-size: clamp(1.2rem, 3vh, 1.5rem);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            right: 0;
+            transition: 0.2s;
+        }
+        .btn-fs:hover { color: var(--theme-color); }
+
+        /* KONTEN UTAMA: Flex 1 agar mengisi sisa tinggi layar */
+        .panel-content {
+            flex: 1 1 auto;
+            min-height: 0; /* Hindari overflow */
+            display: grid;
+            grid-template-columns: 1fr 1.8fr;
+            gap: clamp(10px, 2vw, 20px);
+        }
+
+        /* KOLOM KIRI & KANAN */
+        .left-col { 
+            display: flex; 
+            flex-direction: column; 
+            gap: clamp(5px, 1.5vh, 12px); 
+            justify-content: space-between; 
+        }
+        .right-col { 
+            display: flex; 
+            flex-direction: column; 
+            gap: clamp(5px, 1.5vh, 10px); /* Jarak antar tabel dirapatkan */
+            justify-content: space-between; 
+        }
+
+        /* TIMER (Di atas peserta) */
+        .timer-wrapper { 
+            text-align: center; 
+            flex: 0 0 auto;
+        }
+        .timer-display { 
+            font-size: clamp(2.5rem, 8vh, 4rem); 
+            font-weight: 800; 
+            color: var(--text-main); 
+            background: white; 
+            border-radius: 8px; 
+            padding: clamp(2px, 1vh, 10px); 
+            border: 2px solid #ddd;
+            font-family: 'Courier New', Courier, monospace;
+            font-variant-numeric: tabular-nums;
+            display: inline-block;
+            width: 100%;
+        }
+
+        /* PROFIL PESERTA */
+        .dewan-profile-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f1f7ff;
+            padding: clamp(5px, 1.5vh, 15px);
+            border-radius: 8px;
+            border: 1px solid #d0e1f9;
+            flex: 0 0 auto;
+        }
+        .dewan-info-side { text-align: left; }
+        .info-item label { display: block; font-size: clamp(0.55rem, 1.8vh, 0.75rem); color: var(--text-sub); font-weight: 700; text-transform: uppercase; margin: 0;}
+        .info-item p { font-size: clamp(0.9rem, 2.8vh, 1.2rem); font-weight: 700; color: var(--text-main); margin: 0;}
+        
+        .dewan-avatar-side {
+            width: clamp(50px, 12vh, 80px);
+            height: clamp(50px, 12vh, 80px);
+            border-radius: 8px;
+            border: 2px solid var(--theme-color);
+            overflow: hidden;
+            background: #fff;
+            flex-shrink: 0;
+        }
+        .dewan-avatar-side img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* NILAI AKHIR UTAMA */
+        .main-score-box { 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+            padding: clamp(5px, 1.5vh, 10px); 
+            text-align: center; 
+            border: 3px solid var(--theme-color); 
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .main-score-box label { font-weight: 700; color: var(--text-sub); font-size: clamp(0.7rem, 2vh, 0.9rem); display: block; }
+        .score-value { font-size: clamp(3.5rem, 12vh, 5.5rem); font-weight: 800; color: var(--theme-color); line-height: 1; font-variant-numeric: tabular-nums; margin-top: 5px; }
+
+        /* STATS (St.Dev, Med, Penalti) */
+        .stats-info { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 5px; 
+            background: #f8f9fa; 
+            padding: clamp(5px, 1.5vh, 10px); 
+            border-radius: 8px; 
+            text-align: center;
+            border: 1px solid #ddd;
+            flex: 0 0 auto;
+        }
+
+        /* TABEL CONTAINER */
+        .table-container {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+        .dewan-table {
+            width: 100%;
+            height: 100%;
+            border-collapse: collapse;
+            font-size: clamp(0.6rem, 2vh, 0.95rem);
+            text-align: center;
+            table-layout: fixed;
+        }
+        .dewan-table th, .dewan-table td { 
+            padding: clamp(2px, 0.8vh, 8px) 2px; 
+            border: 1px solid #ddd; 
+            vertical-align: middle;
+        }
+        .dewan-table th { color: white; text-transform: uppercase; font-weight: 700; }
+        
+        /* Tema Dinamis untuk Header Tabel */
+        .dewan-table .bg-dark { 
+            background-color: var(--theme-color) !important; 
+            color: white; 
+            font-weight: 700; 
+        }
+        
+        .score-juri-val {
+            font-weight: 700; 
+            color: var(--theme-color) !important;
+        }
+
+        /* ANIMASI INDIKATOR KUNING RESPONSIVE */
+        td.flash-update {
+            animation: flashYellow 0.6s ease-out;
+        }
+
+        @keyframes flashYellow {
+            0% { 
+                background-color: var(--warning); 
+                color: #000 !important; 
+                font-weight: 900 !important;
+                text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+            }
+            40% { 
+                background-color: var(--warning); 
+                color: #000 !important; 
+                font-weight: 900 !important;
+            }
+            100% { 
+                background-color: transparent; 
+            }
+        }
+
+        /* RESPONSIVE FALLBACK UNTUK POTRAIT */
+        @media (max-width: 768px) and (orientation: portrait) {
+            .panel-content { grid-template-columns: 1fr; overflow-y: auto; }
+            body { overflow-y: auto; display: block; }
+            .panel { height: auto; min-height: 100vh; }
+            .table-container { min-height: 250px; }
+            #fs-overlay { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- OVERLAY MEMAKSA LANDSCAPE -->
+    <div id="fs-overlay">
+        <div class="fs-content" onclick="enterFullscreen()">
+            <i class="fas fa-mobile-alt" style="transform: rotate(-90deg); font-size: 4rem; margin-bottom: 20px; display: block;"></i>
+            <h2>TAP UNTUK FULLSCREEN</h2>
+            <p style="font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Buka kunci rotasi ponsel & gunakan orientasi Landscape <br>untuk tampilan terbaik tanpa scroll.</p>
+        </div>
+    </div>
+
+    <!-- PANEL FRAMELESS & NO-SCROLL -->
+    <div class="panel">
+        <div class="panel-header">
+            <div id="d-match-info-header">MENUNGGU DATA DARI OPERATOR...</div>
+            <button onclick="enterFullscreen()" class="btn-fs" title="Fullscreen">
+                <i class="fas fa-expand"></i>
+            </button>
+        </div>
+
+        <div class="panel-content">
+            <!-- KOLOM KIRI (Timer -> Info Peserta -> Skor Akhir -> Statistik) -->
+            <div class="left-col">
+                
+                <!-- 1. TIMER -->
+                <div class="timer-wrapper">
+                    <div class="timer-display" id="d-timer">00:00.00</div>
+                </div>
+
+                <!-- 2. INFO PESERTA -->
+                <div class="dewan-profile-wrapper">
+                    <div class="dewan-info-side">
+                        <div class="info-item"><label>Nama Peserta</label><p id="d-name">-</p></div>
+                        <div class="info-item" style="margin-top: 5px;"><label>Kontingen</label><p id="d-cont">-</p></div>
+                    </div>
+                    <div class="dewan-avatar-side">
+                        <img id="d-avatar" src="https://iili.io/CShnhS2.png" alt="Avatar">
+                    </div>
+                </div>
+
+                <!-- 3. MAIN SCORE -->
+                <div class="main-score-box">
+                    <label>NILAI AKHIR PESERTA</label>
+                    <div class="score-value" id="d-final-score">0.000</div>
+                </div>
+
+                <!-- 4. STATISTIK PENGURANGAN -->
+                <div class="stats-info">
+                    <div class="info-item"><label>St.Deviasi</label><p id="d-stdev">0.000</p></div>
+                    <div class="info-item"><label>Avg/Med</label><p id="d-median">0.00</p></div>
+                    <div class="info-item"><label>Pen. Juri</label><p id="d-total-pen-juri">0.00</p></div>
+                    <div class="info-item"><label>Pen. Dewan</label><p id="d-pen-dewan" style="color:var(--danger);">0.00</p></div>
+                </div>
+
+            </div>
+
+            <!-- KOLOM KANAN (Tabel Nilai 1-5 dan 6-10) Jarak Dirapatkan -->
+            <div class="right-col">
+                <!-- TABEL JURI 1-5 -->
+                <div class="table-container">
+                    <table class="dewan-table">
+                        <thead>
+                            <tr>
+                                <th class="bg-dark" style="width: 25%;">NO JURI</th>
+                                <th class="bg-dark">JURI 1</th>
+                                <th class="bg-dark">JURI 2</th>
+                                <th class="bg-dark">JURI 3</th>
+                                <th class="bg-dark">JURI 4</th>
+                                <th class="bg-dark">JURI 5</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="bg-dark">NILAI</td>
+                                <td id="d-nilai-1">9.90</td>
+                                <td id="d-nilai-2">9.90</td>
+                                <td id="d-nilai-3">9.90</td>
+                                <td id="d-nilai-4">9.90</td>
+                                <td id="d-nilai-5">9.90</td>
+                            </tr>
+                            <tr>
+                                <td class="bg-dark">STAMINA/T.</td>
+                                <td id="d-power-1">0.00</td>
+                                <td id="d-power-2">0.00</td>
+                                <td id="d-power-3">0.00</td>
+                                <td id="d-power-4">0.00</td>
+                                <td id="d-power-5">0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="bg-dark">SKOR TOTAL</td>
+                                <td id="d-score-juri-1" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-2" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-3" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-4" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-5" class="score-juri-val">9.90</td>
+                            </tr>
+                            <tr>
+                                <td class="bg-dark">STATUS</td>
+                                <td id="d-status-1">Offline</td>
+                                <td id="d-status-2">Offline</td>
+                                <td id="d-status-3">Offline</td>
+                                <td id="d-status-4">Offline</td>
+                                <td id="d-status-5">Offline</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- TABEL JURI 6-10 -->
+                <div class="table-container">
+                    <table class="dewan-table">
+                        <thead>
+                            <tr>
+                                <th class="bg-dark" style="width: 25%;">NO JURI</th>
+                                <th class="bg-dark">JURI 6</th>
+                                <th class="bg-dark">JURI 7</th>
+                                <th class="bg-dark">JURI 8</th>
+                                <th class="bg-dark">JURI 9</th>
+                                <th class="bg-dark">JURI 10</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="bg-dark">NILAI</td>
+                                <td id="d-nilai-6">9.90</td>
+                                <td id="d-nilai-7">9.90</td>
+                                <td id="d-nilai-8">9.90</td>
+                                <td id="d-nilai-9">9.90</td>
+                                <td id="d-nilai-10">9.90</td>
+                            </tr>
+                            <tr>
+                                <td class="bg-dark">STAMINA/T.</td>
+                                <td id="d-power-6">0.00</td>
+                                <td id="d-power-7">0.00</td>
+                                <td id="d-power-8">0.00</td>
+                                <td id="d-power-9">0.00</td>
+                                <td id="d-power-10">0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="bg-dark">SKOR TOTAL</td>
+                                <td id="d-score-juri-6" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-7" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-8" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-9" class="score-juri-val">9.90</td>
+                                <td id="d-score-juri-10" class="score-juri-val">9.90</td>
+                            </tr>
+                            <tr>
+                                <td class="bg-dark">STATUS</td>
+                                <td id="d-status-6">Offline</td>
+                                <td id="d-status-7">Offline</td>
+                                <td id="d-status-8">Offline</td>
+                                <td id="d-status-9">Offline</td>
+                                <td id="d-status-10">Offline</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // INISIALISASI FIREBASE
+        const firebaseConfig = {
+  apiKey: "AIzaSyBTPCFsJz1cY9L44H38RS4Ag8YusBNKXRA",
+  authDomain: "lukman-nur.firebaseapp.com",
+  databaseURL: "https://lukman-nur-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "lukman-nur",
+  storageBucket: "lukman-nur.firebasestorage.app",
+  messagingSenderId: "966190722319",
+  appId: "1:966190722319:web:98e20a170b5cf4da73a27a"
+};
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let juriStatusData = {};
+        let elapsedTime = 0;
+        let timerInterval;
+        let startTime;
+        let prevScores = {}; // Objek untuk menyimpan rekam jejak nilai agar dapat memicu animasi kuning
+
+        // FUNGSI MEMAKSA FULLSCREEN & LANDSCAPE MODE
+        function enterFullscreen() {
+            const overlay = document.getElementById('fs-overlay');
+            if(overlay) overlay.style.display = 'none';
+            
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().then(() => {
+                    if (screen.orientation && screen.orientation.lock) {
+                        screen.orientation.lock('landscape').catch(e => console.log(e));
+                    }
+                }).catch(err => console.log(err));
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(e => console.log(e));
+                }
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
+        }
+
+        // FUNGSI TRIGGER ANIMASI KUNING
+        function triggerFlash(id) {
+            const el = document.getElementById(id);
+            if(el) {
+                el.classList.remove('flash-update');
+                void el.offsetWidth; // Memaksa browser merender ulang DOM sehingga animasi bisa dijalankan kembali
+                el.classList.add('flash-update');
+            }
+        }
+
+        // MENDENGARKAN STATUS AKTIF JURI 1-10
+        db.ref('juriStatus').on('value', (snapshot) => {
+            juriStatusData = snapshot.val() || {};
+            for(let i=1; i<=10; i++) {
+                const el = document.getElementById('d-status-' + i);
+                if(el) {
+                    const isOnline = juriStatusData['juri' + i] === true;
+                    el.innerText = isOnline ? "Online" : "Offline";
+                    el.style.color = isOnline ? "var(--success)" : "var(--danger)";
+                    el.style.fontWeight = "700";
+                }
+            }
+            // Picu kalkulasi ulang jika status juri berubah
+            db.ref('scores').once('value').then((snap) => calculateGlobalScores(snap.val()));
+        });
+
+        // MENDENGARKAN DATA PERTANDINGAN AKTIF
+        db.ref('activeMatch').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if(val) {
+                const ketUpper = (val.kategori || '').toUpperCase();
+                document.getElementById('d-name').innerText = val.name || '-';
+                document.getElementById('d-cont').innerText = val.cont || '-';
+                document.getElementById('d-match-info-header').innerText = `PARTAI ${val.partai} - ${ketUpper}`;
+                document.getElementById('d-avatar').src = val.img || 'https://iili.io/CShnhS2.png';
+                
+                // MENGUBAH TEMA BERDASARKAN SUDUT PESERTA (MERAH / BIRU)
+                if(val.side === 'merah') {
+                    document.body.classList.add('theme-merah');
+                    document.body.classList.remove('theme-biru');
+                } else if(val.side === 'biru') {
+                    document.body.classList.add('theme-biru');
+                    document.body.classList.remove('theme-merah');
+                } else {
+                    document.body.classList.remove('theme-merah', 'theme-biru');
+                }
+            }
+        });
+
+        // MENDENGARKAN TIMER DARI OPERATOR
+        db.ref('timer').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if(val) {
+                elapsedTime = val.elapsedTime;
+                updateTimerDisplay(elapsedTime);
+                if(val.isRunning) {
+                    if(!timerInterval) {
+                        startTime = Date.now() - elapsedTime;
+                        timerInterval = setInterval(() => {
+                            elapsedTime = Date.now() - startTime;
+                            updateTimerDisplay(elapsedTime);
+                        }, 10);
+                    }
+                } else {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+            }
+        });
+
+        // MENDENGARKAN UPDATE NILAI DARI JURI & PENGURANGAN DEWAN
+        db.ref('scores').on('value', (snapshot) => {
+            calculateGlobalScores(snapshot.val());
+        });
+
+        // FUNGSI PERHITUNGAN & PEMBARUAN UI
+        function calculateGlobalScores(scores) {
+            if(!scores) return;
+            
+            let totalJuriPen = 0;
+            let juriValuesForAvg = [];
+            let allJuriValues = [];
+
+            for(let i=1; i<=10; i++) {
+                // Default skor jika tidak ada
+                let s = scores['juri'+i] || { score: 9.90, penalty: 0, stamina: 0, jurus: 1 };
+                
+                const nilaiEl = document.getElementById('d-nilai-'+i);
+                const powerEl = document.getElementById('d-power-'+i);
+                const scoreEl = document.getElementById('d-score-juri-'+i);
+                
+                // Format angka
+                let currentNilai = (9.90 - s.penalty).toFixed(2);
+                let currentStamina = (s.stamina || 0).toFixed(2);
+                let currentScore = (s.score || 9.90).toFixed(2);
+
+                // MEMERIKSA APAKAH ADA PERUBAHAN DIBANDING SEBELUMNYA (Memicu Animasi Kuning)
+                let prev = prevScores[i];
+                if (prev) {
+                    if (prev.nilai !== currentNilai && nilaiEl) triggerFlash('d-nilai-'+i);
+                    if (prev.stamina !== currentStamina && powerEl) triggerFlash('d-power-'+i);
+                    if (prev.score !== currentScore && scoreEl) triggerFlash('d-score-juri-'+i);
+                }
+                
+                // Simpan histori nilai terbaru untuk perbandingan selanjutnya
+                prevScores[i] = {
+                    nilai: currentNilai,
+                    stamina: currentStamina,
+                    score: currentScore
+                };
+
+                // Set text UI tabel 
+                if(nilaiEl) nilaiEl.innerText = currentNilai;
+                if(powerEl) powerEl.innerText = currentStamina;
+                if(scoreEl) scoreEl.innerText = currentScore;
+
+                totalJuriPen += s.penalty || 0;
+                allJuriValues.push(s.score || 9.90);
+
+                // Hanya hitung rata-rata dari Juri yang berstatus "Online"
+                if(juriStatusData['juri'+i] === true) {
+                    juriValuesForAvg.push(s.score || 9.90);
+                }
+            }
+
+            // Hitung Rata-Rata (Hanya dari Juri Aktif)
+            let averageScore = 0;
+            if(juriValuesForAvg.length > 0) {
+                averageScore = juriValuesForAvg.reduce((a,b) => a+b, 0) / juriValuesForAvg.length;
+            }
+
+            // Hitung Median & St.Deviasi Global
+            const sorted = [...allJuriValues].sort((a,b) => a-b);
+            let globalMedian = (sorted[4] + sorted[5]) / 2;
+            const meanFull = allJuriValues.reduce((a,b) => a+b, 0) / 10;
+            let globalStDev = Math.sqrt(allJuriValues.map(x => Math.pow(x - meanFull, 2)).reduce((a,b) => a+b, 0) / 10);
+            
+            // Perbarui UI Statistik
+            document.getElementById('d-median').innerText = averageScore.toFixed(2);
+            document.getElementById('d-stdev').innerText = globalStDev.toFixed(3);
+            document.getElementById('d-total-pen-juri').innerText = totalJuriPen.toFixed(2);
+
+            // Terapkan Pengurangan Nilai Dewan Ketua Pertandingan
+            let penaltyDewan = scores.dewanPenalty || 0;
+            document.getElementById('d-pen-dewan').innerText = penaltyDewan.toFixed(2);
+            
+            // Kalkulasi Final Score = Nilai Rata-rata Juri (aktif) dikurang Penalti Dewan
+            let finalScoreValue = averageScore - penaltyDewan; 
+            document.getElementById('d-final-score').innerText = finalScoreValue.toFixed(3);
+        }
+
+        // FUNGSI FORMAT TIMER
+        function updateTimerDisplay(time) {
+            let mins = Math.floor(time / 60000);
+            let secs = Math.floor((time % 60000) / 1000);
+            let ms = Math.floor((time % 1000) / 10);
+            let formatted = (mins < 10 ? "0" + mins : mins) + ":" + (secs < 10 ? "0" + secs : secs) + "." + (ms < 10 ? "0" + ms : ms);
+            document.getElementById('d-timer').innerText = formatted;
+        }
+    </script>
+</body>
+</html>
